@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["es6"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "resolveJsonModule": true,
+    "outDir": "build",
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"]
+}
