@@ -43,6 +43,7 @@ const fetchUserData = async () => {
       );
       if (parsedRateLimitInfo.call_count == 100) {
         logData(`You're reached the limit number 200 request/day`);
+        clearInterval(execution);
       }
     }
   } catch (err) {
@@ -55,4 +56,4 @@ const fetchUserData = async () => {
   }
 };
 
-setInterval(fetchUserData, 2000);
+const execution = setInterval(fetchUserData, 2000);
