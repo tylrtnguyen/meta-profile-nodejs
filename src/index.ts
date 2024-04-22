@@ -7,6 +7,11 @@ const API_URL: string =
   "https://graph.facebook.com/v19.0/me?fields=id,name,last_name";
 
 const LOG_FILE: string = "meta_log.txt";
+const MAX_REQUEST_PER_DAY = 200;
+const RETRY_DELAY_BASE = 1000;
+
+let retryDelay = RETRY_DELAY_BASE;
+let remainingRequests = MAX_REQUEST_PER_DAY;
 
 type MetaResponseType = {
   id: string;
@@ -28,32 +33,48 @@ const logData = (data: string) => {
   }
 };
 
-const fetchUserData = async () => {
+const fetchUserDataWithRateLimit = async (): Promise<void> => {
   try {
-    let params = new URLSearchParams();
+    const params = new URLSearchParams();
     params.append("access_token", process.env.META_TOKEN);
+
     const response: AxiosResponse = await axios.get(API_URL, { params });
+
     if (response.status === 200) {
       const data: MetaResponseType = response.data;
       const rateLimitInfo: string = response.headers["x-app-usage"];
       const parsedRateLimitInfo: rateLimitInfoType = JSON.parse(rateLimitInfo);
       logData(JSON.stringify(data));
+      remainingRequests = MAX_REQUEST_PER_DAY - parsedRateLimitInfo.call_count;
       logData(
-        `You've sent ${parsedRateLimitInfo.call_count}% of your 200 daily allowed requests`
+        `You've sent ${parsedRateLimitInfo.call_count}% of your ${MAX_REQUEST_PER_DAY} daily allowed requests`,
       );
-      if (parsedRateLimitInfo.call_count == 100) {
+      if (parsedRateLimitInfo.call_count == MAX_REQUEST_PER_DAY) {
         logData(`You're reached the limit number 200 request/day`);
-        clearInterval(execution);
+        clearInterval(retryInterval);
       }
     }
-  } catch (err) {
-    if (err) {
-      console.error(err.response.type);
-      console.error(err.response.code);
-      console.error(err.response.message);
+  } catch (error) {
+    if (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 429) {
+          // 429: Too many request
+          logData("Rate limit exceeded. Retrying...");
+          retryWithBackOff();
+        } else {
+          logData("Error occurred: " + error.message);
+        }
+      }
+    } else {
+      logData("Error occurred: " + error);
     }
-    logData(JSON.stringify(err));
   }
 };
 
-const execution = setInterval(fetchUserData, 2000);
+const retryWithBackOff = (): void => {
+  setTimeout(fetchUserDataWithRateLimit, retryDelay);
+  retryDelay *= 2; // Exponential backoff
+};
+
+// Schedule initial request
+const retryInterval = setInterval(fetchUserDataWithRateLimit, 2000);
